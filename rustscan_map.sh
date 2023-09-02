@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 
-# variables
 HOSTFILE=""
 PORTS=""
 OUTPUTFILE=""
 NMAPFILE=""
+
+UUID=$(uuidgen)
 
 usage() {  # Function: Print a help message.
   echo "Usage: $0 [ -f FILE OF IPS TO SCAN  ] [ -n NMAP OUTPUT FILE ] [ -o OUTPUT FILE ] [ -p PORTS ] [ -h HELP ]" 1>&2
@@ -42,7 +43,6 @@ exit_abnormal() { # Function: Exit with error.
 	esac
 done
 
-# check if any of the variables are empty or not
 if [[ -z "$HOSTFILE" || -z "$PORTS" || -z "$OUTPUTFILE" || -z "$NMAPFILE" ]]
 then
 	echo "[!] Not all required arugments were supplied"
@@ -51,24 +51,25 @@ then
 	exit
 fi
 
-# run rustscan and output into file in greppable format
+# Create directory to store results in
+mkdir -p nmap_scans/"$UUID"
+
 sudo rustscan -a "$HOSTFILE" -p "$PORTS" --ulimit 5000 --greppable > "$OUTPUTFILE"
 
-# replace the stupid -> with just a plain - since this would make running cut much easier
 sed -i 's/->/-/g' "$OUTPUTFILE"
 
-# after parsing store the ports into an array
 declare -a port_array
 
 while IFS= read -r line
 do
+	NMAP_UUID=$(uuidgen)
     cut_ip=$(echo "$line" | cut -d "-" -f1)
     cut_port=$(echo "$line" | cut -d "[" -f2 | cut -d "]" -f1)     
     port_array=${cut_port[@]}
     echo "Ip is: $cut_ip"
     echo "Ports are: ${port_array[@]}"
     echo "---------------"
-    sudo nmap -T4 -Pn -vv -A --open -p $cut_port --append-output -oX "$NMAPFILE" $cut_ip # run the ip with open ports from rustscan in nmap
+    sudo nmap -T4 -Pn -vv -A --open -p $cut_port -oX nmap_scans/"$UUID"/"$NMAP_UUID"_"$NMAPFILE" $cut_ip
     echo "---------------"
 done < "$OUTPUTFILE"
 echo "Done!"
