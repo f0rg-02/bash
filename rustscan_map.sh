@@ -62,7 +62,7 @@ declare -a port_array
 
 while IFS= read -r line
 do
-	NMAP_UUID=$(uuidgen)
+    NMAP_UUID=$(uuidgen)
     cut_ip=$(echo "$line" | cut -d "-" -f1)
     cut_port=$(echo "$line" | cut -d "[" -f2 | cut -d "]" -f1)     
     port_array=${cut_port[@]}
