@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Requires jq and httprobe
+
 DOMAIN=""
 COMPANY=""
 OUTPUTFILE=""
