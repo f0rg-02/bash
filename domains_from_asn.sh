@@ -3,7 +3,13 @@
 # Fuck one liners you lazy buffoons.
 
 # one-liner to convert ASN to ip addresses. Results will be appended to `ips.out`. sander@cedsys.nl | 1-7-2017
-# requires: apt-get install prips, hakrevdns, and httprobe
+# Requires: sudo apt install prips httprobe
+
+# If httprobe not found in apt: https://github.com/tomnomnom/httprobe
+# Install httprobe: go install github.com/tomnomnom/httprobe@latest
+
+# Also requires: https://github.com/hakluke/hakrevdns
+# Install hakrevdns: go install github.com/hakluke/hakrevdns@latest
 
 ASNFILE=""
 OUTPUTFILE=""
