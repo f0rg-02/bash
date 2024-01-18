@@ -1,4 +1,7 @@
-#!/usr/bin/env bash
+#!/bin/bash
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 DSTDIR=""
 SRCDIR=""
@@ -38,4 +41,4 @@ then
 	exit
 fi
 
-cp -Ruv $SRCDIR $DSTDIR
+cp -Ru $SRCDIR $DSTDIR
