@@ -2,15 +2,23 @@
 
 KEYWORD=""
 SRC_DIR=""
+
+OUTPUT_DIR=""
+
+FILES=""
+CHK_PATH=""
+FILE_TYPE=""
+
 EXTRACT=false
 
 usage() {  # Function: Print a help message.
   echo "Usage: $0 
-  [ -k KEYWORD TO PARSE FOR ] 
-  [ -p DIRECTORY PATH TO LOOP THROUGH AND PARSE FILES ]
-  [ -e EXTRACT ANY FILES THAT ARE IN DIRECTORY (zip, tar, tar.gz, etc.) (Optinal argument) ]" 1>&2
+  [ -k KEYWORD TO PARSE FOR (Required) ] 
+  [ -p DIRECTORY PATH TO LOOP THROUGH AND PARSE FILES (Required) ]
+  [ -e EXTRACT ANY FILES THAT ARE IN DIRECTORY (zip, tar, tar.gz, etc.) (Optinal argument) ]
+  [ -o OUTPUT DIRECTORY TO SAVE RESULTS IN (Defaults to current directory if not specified) ]" 1>&2
   echo "---------------"
-  echo "Example: $0 -k boop -p /path/to/directory/to/parse -e true"
+  echo "Example: $0 -k boop -p /path/to/directory/to/parse -e true -o "$HOME"/results"
 
 }
 
@@ -23,11 +31,11 @@ exit_abnormal() { # Function: Exit with error.
 
 # Check if args were inputted
 
-while getopts "k:p:e:h" opt
+while getopts "k:p:e:o:h" opt
 do
         case ${opt} in
         k)
-                echo "Keyword parsing for: ${OPTARG}"
+                echo "Keyword parsing for: '${OPTARG}'"
                 KEYWORD="${OPTARG}"
                 ;;
         p)
@@ -37,6 +45,10 @@ do
         e)
                 echo "Extracting files"
                 EXTRACT="${OPTARG}"
+                ;;
+        o)
+                echo "Output directory: ${OPTARG}" 
+                OUTPUT_DIR="${OPTARG}"
                 ;;
         h)
                 echo "---------------"
@@ -55,37 +67,42 @@ then
         exit
 fi
 
-echo "Changing directory to '$SRC_DIR'"
-cd "$SRC_DIR"
+chk_path() {
 
-# pwd returns without a / at the end so added the 
-# second part of the if statement to account for this
-if [[ $(pwd) != "$SRC_DIR" && $(pwd)"/" != "$SRC_DIR" ]]
-then
-    echo "[!] Not in the correct source directory: '$SRC_DIR'"
-    echo "[!] In directory: '$(pwd)'"
-    echo "Exiting!"
-    exit 1
-fi
+    cd "$CHK_PATH"
 
-if [[ $EXTRACT == "true" ]]
-then
-    # While testing, learned that some files when extracted can have same names.
-    # To avoid overwriting or whatever, extract name from original file and create a folder to extract contents to.
-    
-    echo "Checking for tar files"
-    
-    #find "$SRC_DIR" -iname "*.tar" -maxdepth 1 -exec tar xvf "{}" \;
-    files=$(find "$SRC_DIR" -maxdepth 1 -name "*.tar" )
-
-    # Check if variable files is empty or not
-    if [[ -z $files ]]
+    if [[ $(pwd) != "$CHK_PATH" && $(pwd)"/" != "$CHK_PATH" && "$CHK_PTH" != "../" ]]
     then
+        echo "[!] Not in the correct source directory: '$CHK_PATH'"
+        echo "[!] In directory: '$(pwd)'"
+        echo "Exiting!"
+        exit 1
+    fi
 
-        echo "[!] No tar files were found"
+}
 
-    else
+chk_keyword() {
+    count=0
+    while IFS= read -r file
+    do
 
+        echo "Parsing: '$file'"
+        grep "$KEYWORD" "$file" >> "$OUTPUT_DIR"/"$KEYWORD"_results.txt &
+
+        ((count++))
+
+        if [ $((count % 15)) -eq 0 ]
+        then
+            echo "Reached maximum of number of processes to run in the background"
+            echo "Waiting for them to finish in the background"
+            wait
+        fi
+
+    done <<< "$FILES"
+}
+
+extract_files() {
+    
         count=0
 
         # How to calculate count properly
@@ -100,10 +117,19 @@ then
         while IFS= read -r file
         do
 
-            file_name="${file%.*}"  # Remove trailing tar
+            file_name="${file%.*}"  # Remove trailing extension file type
             echo "$file_name"
             mkdir -p "$file_name"
-            tar xf -C "$file_name" "$file" &
+
+            if [[ $FILE_TYPE == "tar" ]]
+            then
+                tar xf -C "$file_name" "$file" &
+            elif [[ $FILE_TYPE == "zip" ]]
+            then
+                unzip -qq -d "$file_name" "$file" &
+            else
+                echo "Unknown error and file type: '$FILE_TYPE' "
+            fi
 
             ((count++))
 
@@ -114,81 +140,78 @@ then
                 wait
             fi
 
-        done <<< "$files"
+        done <<< "$FILES"
+
+}
+
+echo "Changing directory to '$SRC_DIR'"
+CHK_PATH="$SRC_DIR" # Probably unnecessary, but whatever.
+
+chk_path
+
+if [[ $EXTRACT == "true" ]]
+then
+    # While testing, learned that some files when extracted can have same names.
+    # To avoid overwriting or whatever, extract name from original file and create a folder to extract contents to.
+    
+    echo "Checking for tar files"
+    
+    files=$(find "$SRC_DIR" -maxdepth 1 -name "*.tar" )
+
+    # Check if variable files is empty or not
+    if [[ -z $files ]]
+    then
+
+        echo "[!] No tar files were found"
+
+    else
+        FILE_TYPE="tar"
+        FILES="$files"
+
+        extract_files
 
     fi
 
     echo "Checking for zip files"
-    #find "$SRC_DIR" -iname "*.zip" -maxdepth 1 -exec unzip "{}" \;
     files=$(find "$SRC_DIR" -maxdepth 1 -name "*.zip" )
 
-     # Check if variable files is empty or not
+    # Check if variable files is empty or not
     if [[ -z $files ]]
     then
     
         echo "[!] No zip files were found"
 
     else
+        FILE_TYPE="zip"
+        FILES="$files"
 
-        # Reset counter
-        count=0
-
-
-        # Could've done this: unzip -d ${$1%.zip}
-        # But it looks ugly
-
-        while IFS= read -r file
-        do
-
-            file_name="${file%.*}"  # Remove trailing zip
-            echo "$file_name"
-            mkdir -p "$file_name"
-            unzip -qq -d "$file_name" "$file" &
-
-            ((count++))
-
-            if [ $((count % 10)) -eq 0 ]
-            then
-                echo "Reached maximum of number of processes to run in the background"
-                echo "Waiting for them to finish in the background"
-                wait
-            fi
-
-        done <<< "$files"
+        extract_files
+        
     fi
 
 fi
 
-files=$(find "$SRC_DIR" -type f \( -not -name "*.zip" -and -not -name "*.tar*" \))
+FILES=$(find "$SRC_DIR" -type f \( -not -name "*.zip" -and -not -name "*.tar*" \))
 
-if [[ -z $files ]]
+if [[ -z $FILES ]]
 then
 
     echo "[!] No files were found to parse"
 
 else
 
-    cd ../
-    mkdir -p results/keyword_parse
-    cd results/keyword_parse
+    # cd ../
+    # mkdir -p results/keyword_parse
+    # cd results/keyword_parse
 
-    count=0
-    while IFS= read -r file
-    do
+    if [[ -n "$OUTPUT_DIR" ]]
+    then
 
-        echo "Parsing: '$file'"
-        grep "$KEYWORD" "$file" >> "$KEYWORD"_results.txt &
+        mkdir -p "$OUTPUT_DIR"
 
-        ((count++))
+    fi
 
-        if [ $((count % 15)) -eq 0 ]
-        then
-            echo "Reached maximum of number of processes to run in the background"
-            echo "Waiting for them to finish in the background"
-            wait
-        fi
+    chk_keyword
 
-    done <<< "$files"
-
-echo "Done!"
 fi
+echo "Done!"
